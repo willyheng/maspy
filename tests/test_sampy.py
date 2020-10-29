@@ -6,7 +6,6 @@ import pytest
 
 from click.testing import CliRunner
 
-from sampy import sampy
 from sampy import cli
 
 

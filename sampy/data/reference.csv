@@ -1,0 +1,12 @@
+﻿Equity BBG Ticker,Name,Country,Country Code
+SPX Index,S&P500,US,US
+SXXP Index,STOXX600,Europe,EU
+DAX Index,DAX,Germany,DE
+CAC Index,CAC40,France,FR
+UKX Index,FTSE100,UK,UK
+NKY Index,Nikkei225,Japan,JP
+SHSZ300 Index,Shenzhen CSI 300,China,CN
+AS51 Index,ASX200,Australia,AU
+MXASJ Index,MSCI AC Asia Ex Japan,Asia Ex-Japan,AxJ
+MXLA Index,MSCI EM LatAm,LatAm,LA
+NIFTY Index,Nifty 50,India,IN
