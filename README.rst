@@ -16,17 +16,17 @@ sampy
 
 
 
-H Investment research tools
+Investment research tools
 
 
 * Free software: GNU General Public License v3
-* Documentation: https://sampy.readthedocs.io.
 
 
 Features
 --------
 
-* TODO
+* Manipulation of data
+* Dealing with EPFR data
 
 Credits
 -------

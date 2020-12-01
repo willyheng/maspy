@@ -17,6 +17,10 @@ requirements = ['Click>=7.0',
                'matplotlib',
                'plotly']
 
+extras_require = {
+    'bloomberg':  ["bql"]
+}
+
 setup_requirements = ['pytest-runner', ]
 
 test_requirements = ['pytest>=3', ]
