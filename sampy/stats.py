@@ -1,8 +1,39 @@
 """Tools for statistical analysis."""
 
 
-import pandas as pd, numpy as np
+import pandas as pd, numpy as np, datetime as dt
 import scipy
+from matplotlib.dates import num2date
+
+############################################
+###  Formatting Functions
+############################################
+
+def to_date(date):
+    """Converts date of various formats into datetime.date, including float dates"""
+    
+    # Convert iterables
+    if hasattr(date, '__iter__') and not isinstance(date, str):
+        if not isinstance(date, pd.Series):
+            if isinstance(date[0], np.float):
+                return [x.date() for x in num2date(date)]
+            elif isinstance(date[0], pd.Period):
+                return [x.to_timestamp().date() for x in date]
+            elif type(date) == pd.DatetimeIndex:
+                return date.date
+        results = pd.to_datetime(date)
+        if isinstance(results, pd.DatetimeIndex):
+            return results.date
+        return results.dt.date
+        
+    # Convert non-iterables
+    if isinstance(date, float):
+        return num2date(date).date()
+    elif isinstance(date, pd.Period):
+        return date.to_timestamp().date()
+    if date:
+        return pd.to_datetime(date).date()
+    return date
 
 ############################################
 ###  Time Series Manipulations
@@ -38,9 +69,11 @@ def return_on_dates(price_idx, dates, period=1, relative=False):
 
     return df_new
 
-def extend_ts_all_dates(df):
+def extend_ts_all_dates(df, min_date = None, max_date = None):
     """Extend a dataframe's index to fill missing dates."""
-    df_new = pd.DataFrame(index=pd.date_range(df.index.min(), df.index.max()))
+    min_date = min_date or df.index.min()
+    max_date = max_date or df.index.max()
+    df_new = pd.DataFrame(index=pd.date_range(min_date, max_date))
     return df_new.join(df).sort_index(ascending=True).fillna(method='ffill')
 
 def get_wt_contrib(df, value_name, weight_name, group_name = None, return_wt = False):

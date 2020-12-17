@@ -4,9 +4,10 @@ Custom plotting functions.
 Quick functions to plot certain custom plots
 """
 
-import pandas as pd
+import pandas as pd, numpy as np
 import plotly.express as px
 from matplotlib.dates import date2num
+from .stats import to_date
 
 def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     """Plot a plotly treemap.
@@ -30,7 +31,69 @@ def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     )
     return fig
 
-def add_event(ax, text, date, end_date=None, color='gray', fontsize=12):
+def series_to_bands(series):
+    """Partition timeseries of values into 'bands', with each continuous series of equal values in a single partition.
+    
+    Values are returned as dataframe containing `start`, `end` and the series name.
+    Bands can be used with `add_events`
+    
+    Arg:
+        series (Series): series with dates as index
+        
+    Return:
+        DataFrame: columns of `start`, `end` and `value_name`
+    """
+    def _find_x(series):
+        if len(series) == 0:
+            return []
+        find_end = series[series != series[0]]
+        if len(find_end) > 0: 
+            return [pd.Series({'start':series.index[0], 
+                               'end':find_end.index[0], 
+                               (series.name or "value"):series[0]})] + _find_x(series[find_end.index[0]:])
+        else:
+            return [pd.Series({'start':series.index[0], 
+                               'end':series.index[0], 
+                               (series.name or "value"):series[0]})]
+
+    arr = _find_x(series.dropna())
+    results = pd.concat(arr, axis=1).T
+    
+    return results
+
+def add_events(axes, events, color='gray', alpha=0.5):
+    """Add dataframe of events to chart.
+    
+    Args:
+        axes (Axes or list): ax or axes to add events to. If multiple subplots require events, just pass list of Axes
+        events (DataFrame): needs columns `start`, `end`. Optional columns are `label` and `color`.
+            If no `color` is provided, gray is used
+        color (str, optional): color of bands, used only if events does not have `color` column
+        alpha (float, optional): alpha of bands
+    
+    Returns:
+        Axes    
+    """
+    if not (isinstance(axes, np.ndarray) or isinstance(axes, list)):
+        axes = [axes]
+    min_date = min(to_date([l.get_xdata()[0] for ax in axes for l in ax.lines[:10]]))
+    max_date = max(to_date([l.get_xdata()[-1] for ax in axes for l in ax.lines[:10]]))
+
+    valid_events = events[(to_date(events.end) >= min_date) & (to_date(events.start) <= max_date)].copy()
+    valid_events['start'] = np.where(to_date(valid_events.start) < min_date, min_date, to_date(valid_events.start))
+    valid_events['end'] = np.where(to_date(valid_events.end) > max_date, max_date, to_date(valid_events.end))
+
+    if "label" not in valid_events.columns:
+        valid_events['label'] = ""
+    if 'color' not in valid_events.columns:
+        valid_events['color'] = color
+
+    for idx, (start, end, label, c) in valid_events[['start', 'end', 'label', 'color']].iterrows():
+        for ax in axes:
+            add_event(ax, label, start, end, color=c, alpha=alpha)   
+    return axes
+
+def add_event(ax, text, date, end_date=None, color='gray', fontsize=12, alpha=0.5):
     """Add event to matplotlib axes. 
     
     Adds a vertical line with the text as label. 
@@ -48,23 +111,34 @@ def add_event(ax, text, date, end_date=None, color='gray', fontsize=12):
     # Set style
     linestyle = dict(linewidth=1, color=color)
     
+    date = to_date(date)
+    end_date = to_date(end_date)
+    min_date = to_date(ax.get_xlim()[0])
+    max_date = to_date(ax.get_xlim()[1])
+    
     if end_date:
         # If is a range
-        ax.axvspan(date, end_date, alpha=0.2, facecolor=color)
+        if end_date < min_date or date > max_date:
+            return ax
+        date = max(date, min_date)
+        end_date = min(end_date, max_date)
+        ax.axvspan(date, end_date, alpha=alpha, facecolor=color)
         
         (x1,y1), (x2,y2) = ax.transData.transform([(date2num(date), 0),
                                                    (date2num(end_date), 0)])
-        if (x2 - x1) > fontsize:
-        # Add vlabel inside if sufficiently wide
-            add_vlabel(ax, text, date, color=color)
-        else:
-        # Otherwise put outside
-            add_vlabel(ax, text, end_date, color=color)
+        if text and len(text) > 0:
+            if (x2 - x1) > fontsize:
+            # Add vlabel inside if sufficiently wide
+                add_vlabel(ax, text, date, color=color)
+            else:
+            # Otherwise put outside
+                add_vlabel(ax, text, end_date, color=color)
         
-    else:
+    elif min_date <= date <= max_date:  # Only plot line if date of event is within range
         # Insert vertical line at date
         ax.axvline(date, **linestyle)
         add_vlabel(ax, text, date, color)
+    return ax
     
 def add_vlabel(ax, text, date, color='gray', fontsize=12):
     """Add label to chart (use in conjunction with vline).
