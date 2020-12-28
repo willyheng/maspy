@@ -31,7 +31,7 @@ def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     )
     return fig
 
-def series_to_bands(series):
+def series_to_bands(series, drop_zero=True):
     """Partition timeseries of values into 'bands', with each continuous series of equal values in a single partition.
     
     Values are returned as dataframe containing `start`, `end` and the series name.
@@ -39,6 +39,7 @@ def series_to_bands(series):
     
     Arg:
         series (Series): series with dates as index
+        drop_zero (bool): If True, drops periods where value = 0 (ie no shading required)
         
     Return:
         DataFrame: columns of `start`, `end` and `value_name`
@@ -53,11 +54,13 @@ def series_to_bands(series):
                                (series.name or "value"):series[0]})] + _find_x(series[find_end.index[0]:])
         else:
             return [pd.Series({'start':series.index[0], 
-                               'end':series.index[0], 
+                               'end':series.index[-1], 
                                (series.name or "value"):series[0]})]
 
     arr = _find_x(series.dropna())
     results = pd.concat(arr, axis=1).T
+    if drop_zero:
+        results = results[results.iloc[:,-1] != 0]       
     
     return results
 
