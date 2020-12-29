@@ -4,10 +4,14 @@ Custom plotting functions.
 Quick functions to plot certain custom plots
 """
 
-import pandas as pd, numpy as np
+import pandas as pd, numpy as np, seaborn as sns
 import plotly.express as px
 from matplotlib.dates import date2num
-from .stats import to_date
+from matplotlib.lines import Line2D
+import matplotlib
+import warnings
+import numbers
+from .data import to_date, partition_df
 
 def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     """Plot a plotly treemap.
@@ -31,38 +35,93 @@ def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     )
     return fig
 
-def series_to_bands(series, drop_zero=True):
-    """Partition timeseries of values into 'bands', with each continuous series of equal values in a single partition.
+def lineplot_color(x, y, data, hue=None, color=None, label=None, legend_loc='best', ax=None, palette=None, **kwargs):
+    """Plot a lineplot with multiple colors using seaborn.
     
-    Values are returned as dataframe containing `start`, `end` and the series name.
-    Bands can be used with `add_events`
+    Either `hue` must be provided or both `color` and `label` must be provided, 
     
-    Arg:
-        series (Series): series with dates as index
-        drop_zero (bool): If True, drops periods where value = 0 (ie no shading required)
+    Args:
+        x (str): column name from data
+        y (str): column name from data
+        data (DataFrame): Data to plot
+        hue (str): column name for hue, not required if `label` and `color` provided
+        label (str): column name for labels (column should match that of colors), not used if `hue` provided
+        color (str): column name for colors, not used if `hue` provided
+        legend_loc (str): location of legend (as per matplotlib), hides legend if False. Defaults to `best`. 
+            Other possible options for e.g. `upper left`, `lower right`, `center` etc
+        ax (Axes, optional): ax to plot
+        palette (str or seaborn.palettes._ColorPalette, optional): Only used if `hue` provided. Defaults to seaborn default
+            If colorpalette is provided, number of colours must match number of unique hues
+            For options, go to https://seaborn.pydata.org/tutorial/color_palettes.html
+        **kwargs (optional): additional parameters to pass to `seaborn.lineplot` or `ax.set` 
+            Parameters to be passed to lineplot includes `linewidth` and `linestyle`, 
+            Other parameters will be passed to ax.set, for instance `title`, `xlabel`, `ylabel` etc
         
     Return:
-        DataFrame: columns of `start`, `end` and `value_name`
-    """
-    def _find_x(series):
-        if len(series) == 0:
-            return []
-        find_end = series[series != series[0]]
-        if len(find_end) > 0: 
-            return [pd.Series({'start':series.index[0], 
-                               'end':find_end.index[0], 
-                               (series.name or "value"):series[0]})] + _find_x(series[find_end.index[0]:])
-        else:
-            return [pd.Series({'start':series.index[0], 
-                               'end':series.index[-1], 
-                               (series.name or "value"):series[0]})]
-
-    arr = _find_x(series.dropna())
-    results = pd.concat(arr, axis=1).T
-    if drop_zero:
-        results = results[results.iloc[:,-1] != 0]       
+        Axes
+    """        
+    # Break kwargs into for lineplot and for ax.set
+    lineplot_options = ['linewidth', 'linestyle', 'palette']
+    line_dict = {key:kwargs[key] for key in kwargs if key in lineplot_options}
+    set_dict = {key:kwargs[key] for key in kwargs if key not in lineplot_options}
     
-    return results
+    # If hue is used
+    if hue:
+        data = data.copy()
+        
+        # If palette provided is a `str`, generate color_palette
+        if palette and isinstance(palette, str):
+            palette = sns.color_palette(palette, n_colors=len(np.unique(data[hue])))
+        else:
+            # Set palette as diverging green to red if hue is numeric, otherwise use seaborn default
+            #palette = palette or (sns.diverging_palette(145, 15, s=100, l=50, center="dark", n=len(np.unique(data[hue]))) if isinstance(data[hue][0], numbers.Number) else None)
+            # Set palette as `coolwarm` if hue is numeric, otherwise use seaborn default
+            palette = palette or (sns.color_palette("coolwarm", n_colors=len(np.unique(data[hue]))) if isinstance(data[hue][0], numbers.Number) else None)
+        line_dict['palette'] = palette
+
+        # Set hue as categorical data
+        data[hue] = data[hue].astype('category')
+        # Break data into continuous parts and plot them
+        broken = partition_df(data, hue)
+        for d in broken:
+            ax = sns.lineplot(x=x, y=y, hue=hue, data=d.reset_index(), **line_dict)
+
+        # Display only unique legend labels
+        hand, labl = ax.get_legend_handles_labels()
+        uniq_labl = np.unique(labl, return_index=True)
+        ax.legend(np.array(hand)[uniq_labl[1]], uniq_labl[0], loc=legend_loc)
+
+        # Display only unique legend labels
+        hand, labl = ax.get_legend_handles_labels()
+        uniq_labl = np.unique(labl, return_index=True)
+        ax.legend(np.array(hand)[uniq_labl[1]], uniq_labl[0], loc=legend_loc)
+        
+    # Otherwise both color and label must be provided
+    elif color and label:
+        if palette:
+            warnings.warn("`Palette` ignored, as it is only used for `hue`. Manual colors have to be provided in `color` column")
+        # Warn if label value and color value do not match
+        color_df = data[[label, color]].reset_index(drop=True).drop_duplicates().sort_values(label)
+        if len(color_df[label].drop_duplicates()) < len(color_df) or len(color_df[color].drop_duplicates()) < len(color_df):
+            warnings.warn("Labels do not correspond to unique colors.")
+        
+        broken = partition_df(data, color)
+        for d in broken:
+            ax = sns.lineplot(x=x, y=y, color=d.color.iloc[0], data=d.reset_index(), ax=ax, **line_dict)
+        # Add legend
+        lw = ax.get_lines()[0].get_linewidth()
+
+        custom_lines = [Line2D([0], [0], color=color, lw=lw) for idx, (label, color) in color_df.iterrows()]
+        if legend_loc:
+            ax.legend(custom_lines, color_df[label], loc=legend_loc)
+    else:
+        raise Exception("If `hue` is not provided, then both `color` and `label` needs to be provided")
+        
+    # Set stuff like title, xlabels etc
+    if kwargs:
+        ax.set(**set_dict)
+    
+    return ax
 
 def add_events(axes, events, color='gray', alpha=0.5):
     """Add dataframe of events to chart.
@@ -79,8 +138,8 @@ def add_events(axes, events, color='gray', alpha=0.5):
     """
     if not (isinstance(axes, np.ndarray) or isinstance(axes, list)):
         axes = [axes]
-    min_date = min(to_date([l.get_xdata()[0] for ax in axes for l in ax.lines[:10]]))
-    max_date = max(to_date([l.get_xdata()[-1] for ax in axes for l in ax.lines[:10]]))
+    min_date = min(to_date([l.get_xdata()[0] for ax in axes for l in ax.lines if len(l.get_xdata()) > 0] ))
+    max_date = max(to_date([l.get_xdata()[-1] for ax in axes for l in ax.lines if len(l.get_xdata()) > 0]))
 
     valid_events = events[(to_date(events.end) >= min_date) & (to_date(events.start) <= max_date)].copy()
     valid_events['start'] = np.where(to_date(valid_events.start) < min_date, min_date, to_date(valid_events.start))

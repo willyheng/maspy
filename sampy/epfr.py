@@ -68,9 +68,9 @@ def clean_corp(df):
     df['Subtype'] = df.Filters.str.extract("({})".format(type_regex))
 
     df['Filters'] = df.Filters. \
-        str.replace("({}), ".format(type_regex), ""). \
-        str.replace(", ({})".format(type_regex), ""). \
-        str.replace("{}".format(type_regex), "None") 
+        str.replace("({}), ".format(type_regex), "", regex=True). \
+        str.replace(", ({})".format(type_regex), "", regex=True). \
+        str.replace("{}".format(type_regex), "None", regex=True) 
     
     return df
 
@@ -116,9 +116,9 @@ def extract_filters(df, custom_types = None, custom_name = "Custom"):
         custom_regex = "|".join(flattened_types)
         
     df['Filters'] = df.Filters. \
-            str.replace(r"\b({}), ".format(custom_regex), ""). \
-            str.replace(r", ({})\b".format(custom_regex), ""). \
-            str.replace(r"\b({})\b".format(custom_regex), "None") 
+            str.replace(r"\b({}), ".format(custom_regex), "", regex=True). \
+            str.replace(r", ({})\b".format(custom_regex), "", regex=True). \
+            str.replace(r"\b({})\b".format(custom_regex), "None", regex=True) 
 
     return df
     
