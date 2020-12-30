@@ -29,18 +29,16 @@ def get_beta(df_x, df_y, start_date=None, end_date=None):
     """Calculate the beta of the variables in df_y to that of df_x.
     
     Args:
-        df_x, df_y (DataFrame): column names and indices of both DataFramesshould match
+        df_x, df_y (DataFrame): column names and indices of both DataFrames should match
         start_date, end_date (str or Timestamp, optional): the start or end dates 
     
     Returns:
         pd.Series: betas, index will be the same columns as df_x
     """
-    if not start_date:
-        start_date = df_x.index.min()
-    if not end_date:
-        end_date = df_x.index.max()
-    x = df_x[start_date:end_date]
-    y = df_y[start_date:end_date]
+    start_date = start_date or df_x.index.min()
+    end_date = end_date or df_x.index.max()
+    x = df_x.loc[start_date:end_date]
+    y = df_y.loc[start_date:end_date]
     
     return pd.Series([get_reg_slope(x[c], y[c]) for c in x], \
                      index = x.columns)

@@ -11,7 +11,7 @@ from matplotlib.lines import Line2D
 import matplotlib
 import warnings
 import numbers
-from .data import to_date, partition_df
+from .data import to_date, partition_by
 
 def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
     """Plot a plotly treemap.
@@ -82,7 +82,7 @@ def lineplot_color(x, y, data, hue=None, color=None, label=None, legend_loc='bes
         # Set hue as categorical data
         data[hue] = data[hue].astype('category')
         # Break data into continuous parts and plot them
-        broken = partition_df(data, hue)
+        broken = partition_by(data, hue, continuous=True)
         for d in broken:
             ax = sns.lineplot(x=x, y=y, hue=hue, data=d.reset_index(), **line_dict)
 
@@ -105,7 +105,7 @@ def lineplot_color(x, y, data, hue=None, color=None, label=None, legend_loc='bes
         if len(color_df[label].drop_duplicates()) < len(color_df) or len(color_df[color].drop_duplicates()) < len(color_df):
             warnings.warn("Labels do not correspond to unique colors.")
         
-        broken = partition_df(data, color)
+        broken = partition_by(data, color, continuous=True)
         for d in broken:
             ax = sns.lineplot(x=x, y=y, color=d.color.iloc[0], data=d.reset_index(), ax=ax, **line_dict)
         # Add legend

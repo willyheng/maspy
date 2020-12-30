@@ -1,5 +1,5 @@
 """Tools for data manipulation."""
-
+import pkg_resources
 import pandas as pd, numpy as np, datetime as dt
 from matplotlib.dates import num2date
 
@@ -67,12 +67,19 @@ def return_on_dates(price_idx, dates, period=1, relative=False):
 
     return df_new
 
-def extend_ts_all_dates(df, min_date = None, max_date = None):
+def extend_ts_all_dates(df, min_date = None, max_date = None, method='ffill'):
     """Extend a dataframe's index to fill missing dates."""
     min_date = min_date or df.index.min()
     max_date = max_date or df.index.max()
     df_new = pd.DataFrame(index=pd.date_range(min_date, max_date))
-    return df_new.join(df).sort_index(ascending=True).fillna(method='ffill')
+    df_new = df_new.join(df).sort_index(ascending=True).fillna(method=method)
+    # Try to convert types back to original types, does not work on `int` type if NA is present
+    #   Skip if unable to convert types back
+    try:
+        df_new = df_new.astype(df.dtypes)
+    except:
+        pass
+    return df_new
 
 def get_wt_contrib(df, value_name, weight_name, group_name = None, return_wt = False):
     """Get weighted contribution to a value.
@@ -108,27 +115,32 @@ def get_wt_contrib(df, value_name, weight_name, group_name = None, return_wt = F
         return df[['weight', 'wt_contrib']]
     return df['wt_contrib']
 
-def partition_df(df, by_col):
-    """Partition timeseries of values into a list of series with each one containing continuous equal values.
+def partition_by(df, by, continuous=True):
+    """Partition dataframe of values into a list of dataframe with each one containing continuous equal values.
     
     Arg:
         df (DataFrame): DataFrame with dates as index
-        by_col (str): column to break the dataframe by
+        by (str): column to break the dataframe by
+        continuous (bool): If True, adds the first row of the next partition to the previous, 
+            this allows timeseries plots to be continuous
         
     Return:
         list: list of DataFrames
     """
     
     def _find_x(df_curr):
-        curr_series = df_curr.loc[:, by_col]
+        curr_series = df_curr.loc[:, by]
         if len(df_curr) == 0:
             return []
-        find_end = df_curr[curr_series != curr_series[0]]
+        find_end = df_curr[curr_series != curr_series.iloc[0]]
         if len(find_end) > 0: 
             end_index = find_end.index[0]
-            ret_df = df_curr[:end_index].copy()
-            ret_df.iloc[-1, ret_df.columns.get_loc(by_col)] = curr_series[0]
-            return [ret_df] + _find_x(df_curr[end_index:])
+            if continuous:
+                ret_df = df_curr.loc[:end_index].copy()
+                ret_df.iloc[-1, ret_df.columns.get_loc(by)] = curr_series.iloc[0]
+            else:
+                ret_df = df_curr.loc[:end_index].iloc[:-1]
+            return [ret_df] + _find_x(df_curr.loc[end_index:])
         return [df_curr]
 
     arr = _find_x(df)
@@ -153,17 +165,26 @@ def series_to_bands(series, drop_zero=True):
             return []
         find_end = series[series != series[0]]
         if len(find_end) > 0: 
-            return [pd.Series({'start':series.index[0], 
+            return [pd.DataFrame({'start':series.index[0], 
                                'end':find_end.index[0], 
-                               (series.name or "value"):series[0]})] + _find_x(series[find_end.index[0]:])
+                               (series.name or "value"):series[0]}, index=[0])] + _find_x(series[find_end.index[0]:])
         else:
-            return [pd.Series({'start':series.index[0], 
+            return [pd.DataFrame({'start':series.index[0], 
                                'end':series.index[-1], 
-                               (series.name or "value"):series[0]})]
+                               (series.name or "value"):series[0]}, index=[0])]
 
     arr = _find_x(series.dropna())
-    results = pd.concat(arr, axis=1).T
+    results = pd.concat(arr, axis=0).reset_index(drop=True) 
     if drop_zero:
         results = results[results.iloc[:,-1] != 0]       
     
     return results
+
+############################################
+###  Get Data
+############################################
+
+def sample_spx():
+    """Get sample OHLCV S&P500 data from 2011 to 2022."""
+    stream = pkg_resources.resource_stream(__name__, 'data/spx.csv')
+    return pd.read_csv(stream, encoding='latin-1', index_col=0, parse_dates=True)    

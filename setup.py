@@ -15,7 +15,8 @@ requirements = ['Click>=7.0',
                'numpy',
                'seaborn',
                'matplotlib',
-               'plotly']
+               'plotly',
+               'scipy']
 
 extras_require = {
     'bloomberg':  ["bql"]
