@@ -1,7 +1,7 @@
 import pytest
 import numpy as np, datetime as dt, pandas as pd
 from matplotlib.dates import datestr2num
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 
 from sampy.data import to_date, partition_by, series_to_bands, extend_ts_all_dates
     
@@ -35,15 +35,15 @@ def test_to_date_convert_datetimeindex():
 
 # Generate dataframe to partition (with date)
 df = []
-df.append(pd.DataFrame({'filler1':['a', 'b'], 'partition_by':[0,0], 'filler2':[1,2]}, 
+df.append(pd.DataFrame({'filler1':['a', 'b'], 'partition_by':[0,0], 'filler2':[1.1,2.1]}, 
                        index=pd.date_range("2020-01-05", "2020-01-06")))
-df.append(pd.DataFrame({'filler1':['c','d','e'], 'partition_by':[2,2,2], 'filler2':[3,4,5]}, 
+df.append(pd.DataFrame({'filler1':['c','d','e'], 'partition_by':[2,2,2], 'filler2':[3.1,4.1,5.1]}, 
                        index=pd.date_range("2020-01-07", "2020-01-09")))
-df.append(pd.DataFrame({'filler1':['f','g'], 'partition_by':[0,0], 'filler2':[6,7]}, 
+df.append(pd.DataFrame({'filler1':['f','g'], 'partition_by':[0,0], 'filler2':[6.1,7.1]}, 
                        index=pd.date_range("2020-01-10", "2020-01-11")))
-df.append(pd.DataFrame({'filler1':['h'], 'partition_by':[-3], 'filler2':[8]}, 
+df.append(pd.DataFrame({'filler1':['h'], 'partition_by':[-3], 'filler2':[8.1]}, 
                        index=pd.date_range("2020-01-15", "2020-01-15")))
-df.append(pd.DataFrame({'filler1':['i','j'], 'partition_by':[0,0], 'filler2':[9,10]}, 
+df.append(pd.DataFrame({'filler1':['i','j'], 'partition_by':[0,0], 'filler2':[9.1,10.1]}, 
                        index=pd.date_range("2020-01-16", "2020-01-17")))
 df_all = pd.concat(df)
 
@@ -74,11 +74,11 @@ def test_partition_by_with_dateindex_noncontinuous():
 
 # Generate dataframe to partition (without date)
 df_nd = []
-df_nd.append(pd.DataFrame({'filler1':['a', 'b'], 'partition_by':[1,1], 'filler2':[1,2]}, index=[5, 6]))
-df_nd.append(pd.DataFrame({'filler1':['c','d','e'], 'partition_by':[2,2,2], 'filler2':[3,4,5]}, index=[7, 8, 9]))
-df_nd.append(pd.DataFrame({'filler1':['f','g'], 'partition_by':[1,1], 'filler2':[6,7]}, index=[10, 11]))
-df_nd.append(pd.DataFrame({'filler1':['h'], 'partition_by':[-3], 'filler2':[8]}, index=[12]))
-df_nd.append(pd.DataFrame({'filler1':['i','j'], 'partition_by':[1,1], 'filler2':[9,10]}, index=[13, 14]))
+df_nd.append(pd.DataFrame({'filler1':['a', 'b'], 'partition_by':[1,1], 'filler2':[1.1,2.1]}, index=[5, 6]))
+df_nd.append(pd.DataFrame({'filler1':['c','d','e'], 'partition_by':[2,2,2], 'filler2':[3.1,4.1,5.1]}, index=[7, 8, 9]))
+df_nd.append(pd.DataFrame({'filler1':['f','g'], 'partition_by':[1,1], 'filler2':[6.1,7.1]}, index=[10, 11]))
+df_nd.append(pd.DataFrame({'filler1':['h'], 'partition_by':[-3], 'filler2':[8.1]}, index=[12]))
+df_nd.append(pd.DataFrame({'filler1':['i','j'], 'partition_by':[1,1], 'filler2':[9.1,10.1]}, index=[13, 14]))
 df_nd_all = pd.concat(df_nd)
 
 # Generate expected results
@@ -126,7 +126,7 @@ def test_series_to_bands_not_drop():
 def test_extend_series_all_dates_ffill():
     exp_results = pd.DataFrame({'filler1': list('abcdefgggghij'), 
                       'partition_by': [0,0,2,2,2,0,0,0,0,0, -3, 0, 0],
-                      'filler2': [1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 8, 9, 10]}, 
+                      'filler2': [1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 7.1, 7.1, 7.1, 8.1, 9.1, 10.1]}, 
                      index=pd.date_range("2020-01-05", "2020-01-17"))
     results = extend_ts_all_dates(df_all, method='ffill')
     assert_frame_equal(results, exp_results, check_freq=False)
@@ -134,7 +134,7 @@ def test_extend_series_all_dates_ffill():
 def test_extend_series_all_dates_bfill():
     exp_results = pd.DataFrame({'filler1': list('abcdefghhhhij'), 
                       'partition_by': [0,0,2,2,2,0,0,-3,-3,-3, -3, 0, 0],
-                      'filler2': [1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 8, 9, 10]}, 
+                      'filler2': [1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 8.1, 8.1, 8.1, 9.1, 10.1]}, 
                      index=pd.date_range("2020-01-05", "2020-01-17"))
     results = extend_ts_all_dates(df_all, method='bfill')
     assert_frame_equal(results, exp_results, check_freq=False)
@@ -142,8 +142,25 @@ def test_extend_series_all_dates_bfill():
 def test_extend_series_all_dates_min_max():
     exp_results = pd.DataFrame({'filler1': [np.nan] + list('abcdefgggghijjj'), 
                       'partition_by': [np.nan] + [0,0,2,2,2,0,0,0,0,0, -3, 0, 0, 0, 0],
-                      'filler2': [np.nan] + [1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 8, 9, 10, 10, 10]}, 
+                      'filler2': [np.nan] + [1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 7.1, 7.1, 7.1, 8.1, 9.1, 10.1, 10.1, 10.1]}, 
                      index=pd.date_range("2020-01-04", "2020-01-19"))
     results = extend_ts_all_dates(df_all, min_date="2020-01-04", max_date="2020-01-19", method='ffill')
     assert_frame_equal(results, exp_results, check_freq=False)
+    
+def test_extend_series_all_dates_pdseries():
+    results_str = extend_ts_all_dates(df_all.filler1, min_date="2020-01-04", max_date="2020-01-19", method='ffill')
+    exp_results_str = pd.Series([np.nan] + list('abcdefgggghijjj'), 
+                                index=pd.date_range("2020-01-04", "2020-01-19"), name='filler1')
+    assert_series_equal(results_str, exp_results_str)
+    
+    results_int = extend_ts_all_dates(df_all.partition_by, min_date="2020-01-04", max_date="2020-01-19", method='ffill')
+    exp_results_int = pd.Series([np.nan] + [0,0,2,2,2,0,0,0,0,0, -3, 0, 0, 0, 0], 
+                                index=pd.date_range("2020-01-04", "2020-01-19"), name='partition_by')
+    assert_series_equal(results_int, exp_results_int)
+    
+    results_float = extend_ts_all_dates(df_all.filler2, min_date="2020-01-04", max_date="2020-01-19", method='ffill')
+    exp_results_float = pd.Series([np.nan] + [1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 7.1, 7.1, 7.1, 8.1, 9.1, 10.1, 10.1, 10.1], 
+                                  index=pd.date_range("2020-01-04", "2020-01-19"), name='filler2')
+    assert_series_equal(results_float, exp_results_float)
+    
     

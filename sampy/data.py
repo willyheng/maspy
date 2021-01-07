@@ -67,18 +67,31 @@ def return_on_dates(price_idx, dates, period=1, relative=False):
 
     return df_new
 
-def extend_ts_all_dates(df, min_date = None, max_date = None, method='ffill'):
-    """Extend a dataframe's index to fill missing dates."""
-    min_date = min_date or df.index.min()
-    max_date = max_date or df.index.max()
+def extend_ts_all_dates(ts, min_date = None, max_date = None, method='ffill'):
+    """Extend a dataframe's index to fill missing dates.
+    
+    Args:
+        ts (Series or DataFrame): needs to have dates as index
+        min_date, max_date (str or Date): minimum and maximum dates, if None, will use min and max from ts
+        method (str): fill method for pd.DataFrame().fillna()
+    
+    Returns:
+        Series or DataFrame: if ts is Series, returns series
+    """
+    min_date = min_date or ts.index.min()
+    max_date = max_date or ts.index.max()
     df_new = pd.DataFrame(index=pd.date_range(min_date, max_date))
-    df_new = df_new.join(df).sort_index(ascending=True).fillna(method=method)
+    df_new = df_new.join(ts).sort_index(ascending=True).fillna(method=method)
     # Try to convert types back to original types, does not work on `int` type if NA is present
     #   Skip if unable to convert types back
     try:
-        df_new = df_new.astype(df.dtypes)
+        df_new = df_new.astype(ts.dtypes)
     except:
         pass
+    
+    if isinstance(ts, pd.Series):
+        return df_new.squeeze()
+    
     return df_new
 
 def get_wt_contrib(df, value_name, weight_name, group_name = None, return_wt = False):
