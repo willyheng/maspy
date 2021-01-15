@@ -11,6 +11,7 @@ from matplotlib.lines import Line2D
 import matplotlib
 import warnings
 import numbers
+import matplotlib.pyplot as plt
 from .data import to_date, partition_by
 
 def plot_treemap(df, name_col, parent_col, value_col, **kwargs):
@@ -230,3 +231,99 @@ def add_vlabel(ax, text, date, color='gray', fontsize=12):
         ax.text(date, miny * 1.05, text, ha='left', va='bottom', rotation=-90, **fontstyle)
     else:
         ax.text(date, maxy * 0.99, text, ha='left', va='top', rotation=-90, **fontstyle)
+
+def plot_grid_heatmap(df, scalexy=True, palette=sns.color_palette("vlag_r", n_colors=50),
+                      annot=True, fmt="0.1f", vmin=None, vmax=None, center=None, title=None,
+                      figsize=(12,10)):
+    """Plot a multiindex dataframe into heatmap by breaking into grids.
+
+    Supports Multiindex on either column or row or both. Needs to have at least one axis to have multiindex.
+
+    Args:
+        df (DataFrame): dataframe of heatmap to plot
+        scalexy (bool): If True, will resize subplots based on number of entries, otherwise all subplots equal size
+        palette (seaborn.color_palette): Defaults to "vlag_r" (red to white to blue as value increases)
+        annot (bool): If True, prints values as annotation
+        fmt (str): format of annotation
+        vmin, vmax (float, optional): values corresponding to extreme colors,
+            defaults to extreme values in the dataframe
+        center (float, optional): the value corresponding to the centre in colors
+        title (str, optional): the suptitle to be displayed at the top of plot
+        figsize (tuple): figsize of the plot
+
+    Returns:
+        Figure
+    """
+    df = df.copy()
+
+    # Handling cases where columns or indices are not MultiIndex
+    if not isinstance(df.columns, pd.MultiIndex) and not isinstance(df.index, pd.MultiIndex):
+        raise Exception("Neither column nor index in df is MultiIndex, this function needs at least one to be MultiIndex")
+    if not isinstance(df.columns, pd.MultiIndex):
+        df.columns = pd.MultiIndex.from_product([[df.columns.name or ""], df.columns])
+    if not isinstance(df.index, pd.MultiIndex):
+        df.index = pd.MultiIndex.from_product([[df.index.name or ""], df.index])
+
+    # Grid for heatmaps
+    nrows = len(df.index.levels[0])
+    ncols = len(df.columns.levels[0])
+
+    # Set height and width ratios based on number of entries, used only if scalexy=True
+    height_ratios = [len(df.loc[idx]) for idx in df.index.levels[0]] # Set height ratio to number of series in each group
+    width_ratios = [df.loc[:,idx].shape[1] for idx in df.columns.levels[0]] # Set width ratio
+
+    # Set subplot figures
+    fig, axes = plt.subplots(figsize=figsize,
+                             nrows=nrows, ncols=ncols,
+                             sharex='col', sharey='row',
+                             gridspec_kw={'height_ratios': height_ratios,
+                                         'width_ratios': width_ratios} if scalexy else {})
+
+    # Add colorbar axes
+    cbar_ax = fig.add_axes([.91, .3, 0.03, .4])
+    vmin = vmin or min(df.min().min(), -abs(df.max().max()))
+    vmax = vmax or -vmin
+
+    # Parameters for all plots
+    params = {"vmin":vmin,
+             "vmax":vmax,
+             "center":center,
+             "cmap":palette,
+             "annot":annot,
+             "fmt":fmt,
+             "linewidths":0.5,
+             "linecolor":"white"}
+
+    # Plot heatmaps for every index
+    for r_idx, r in enumerate(df.index.levels[0]):
+        for c_idx, c in enumerate(df.columns.levels[0]):
+            curr_ax = axes.flat[r_idx*ncols+c_idx]
+            sns.heatmap(df.loc[r, c],
+                        ax=curr_ax,
+                        cbar_ax=cbar_ax if r_idx==c_idx==0 else None,
+                        cbar=True if r_idx==c_idx==0 else False,
+                        **params).set(ylabel="", xlabel="")
+            # Add group labels for columns if last row
+            if r_idx == nrows-1 and ncols > 1:
+                curr_ax.set(xlabel=c)
+
+        # Add group labels for rows
+        axes.flat[r_idx*ncols].set(ylabel=r)
+
+        # To fix alignment due to matplotlib bug
+        axes.flat[(r_idx+1)*ncols-1].set_ylim([0,len(df.loc[r,c])])
+
+    # add frames
+    for ax in axes.flat:
+        ax.tick_params(left=False, bottom=False)
+        for _, spine in ax.spines.items():
+            spine.set_visible(True)
+
+    if title:
+        fig.suptitle(title, y=1.01)
+
+    with warnings.catch_warnings(): # Hide warnings from tight_layout
+        warnings.simplefilter("ignore")
+        fig.tight_layout(rect=[0,0,0.9,1])
+
+    return fig
